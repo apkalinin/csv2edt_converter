@@ -1,47 +1,47 @@
-' конвертация первого блока данных из csv в edt
+' РєРѕРЅРІРµСЂС‚Р°С†РёСЏ РїРµСЂРІРѕРіРѕ Р±Р»РѕРєР° РґР°РЅРЅС‹С… РёР· csv РІ edt
 const c_strScriptVer = "1.1"
 '------------------------------------------------------------------------------
 
-' названия соответствующих подпапок
+' РЅР°Р·РІР°РЅРёСЏ СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РёС… РїРѕРґРїР°РїРѕРє
 const c_strLogsSubFolder = "logs"
 const c_strSourceSubFolder = "source\"
 'const c_strSourceSubFolder = ""
 const c_strResultsSubFolder = "results"
 
-' путь к исходным данным для отладки
+' РїСѓС‚СЊ Рє РёСЃС…РѕРґРЅС‹Рј РґР°РЅРЅС‹Рј РґР»СЏ РѕС‚Р»Р°РґРєРё
 c_strSourceFile = "__test01"
 
-' расширения файлов
+' СЂР°СЃС€РёСЂРµРЅРёСЏ С„Р°Р№Р»РѕРІ
 const c_strLogExtension = ".log"
 const c_strResultsExtension = ".edt"
 const c_strSourceExtension = ".csv"
 
-' разделительный символ csv файла
-' см c_WinUserSetting_ListSeparator
+' СЂР°Р·РґРµР»РёС‚РµР»СЊРЅС‹Р№ СЃРёРјРІРѕР» csv С„Р°Р№Р»Р°
+' СЃРј c_WinUserSetting_ListSeparator
 'const c_CSVSplitSymbol = ";"
 
-' формат дробных чисел
+' С„РѕСЂРјР°С‚ РґСЂРѕР±РЅС‹С… С‡РёСЃРµР»
 const c_EdtDecimalSymbol = "."
 
-' кодовое слово для обозначения нового блока
+' РєРѕРґРѕРІРѕРµ СЃР»РѕРІРѕ РґР»СЏ РѕР±РѕР·РЅР°С‡РµРЅРёСЏ РЅРѕРІРѕРіРѕ Р±Р»РѕРєР°
 const c_strNewBlock = "strain(%)"
 
-' размер одной числовой записи
+' СЂР°Р·РјРµСЂ РѕРґРЅРѕР№ С‡РёСЃР»РѕРІРѕР№ Р·Р°РїРёСЃРё
 const c_nOutputWidth = 80
 const c_nElementLength = 10
 const c_nNumberLength = 5
 c_nElementsInOneRow = c_nOutputWidth / c_nElementLength
 c_nNumbersInOneRow = c_nOutputWidth / c_nNumberLength
 
-' размер информационного поля о количестве элементов
+' СЂР°Р·РјРµСЂ РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅРѕРіРѕ РїРѕР»СЏ Рѕ РєРѕР»РёС‡РµСЃС‚РІРµ СЌР»РµРјРµРЅС‚РѕРІ
 const c_nHeaderLenth_NumberOfElements = 5
 
-' параметры формирования заголоков
+' РїР°СЂР°РјРµС‚СЂС‹ С„РѕСЂРјРёСЂРѕРІР°РЅРёСЏ Р·Р°РіРѕР»РѕРєРѕРІ
 const c_nBlockHeader01_FullLength = 16
 const c_nBlockHeader01_LeadingSpaces = 4
-const c_nBlockHeader02_FullLength = 59	' вот почему-то столько отводит места программа
+const c_nBlockHeader02_FullLength = 59	' РІРѕС‚ РїРѕС‡РµРјСѓ-С‚Рѕ СЃС‚РѕР»СЊРєРѕ РѕС‚РІРѕРґРёС‚ РјРµСЃС‚Р° РїСЂРѕРіСЂР°РјРјР°
 
-' текст заголовков
+' С‚РµРєСЃС‚ Р·Р°РіРѕР»РѕРІРєРѕРІ
 const c_strBlockHeader01_01 = "Mat"
 const c_strBlockHeader01_02 = "_Busher"
 
@@ -52,13 +52,13 @@ const c_strGlogalHeader01 = "SHAKE2000 EDT File - SI"
 const c_strGlogalHeader02 = "Option 1 - Dynamic material properties"
 const c_strGlogalHeader03 = "    1"
 
-' до какого разряда производить округление
+' РґРѕ РєР°РєРѕРіРѕ СЂР°Р·СЂСЏРґР° РїСЂРѕРёР·РІРѕРґРёС‚СЊ РѕРєСЂСѓРіР»РµРЅРёРµ
 const c_nPlaceToRound = 5
 
 const c_nBlockTypeModulus = 0
 const c_nBlockTypeDamping = 1
 
-' глобальные переменные 
+' РіР»РѕР±Р°Р»СЊРЅС‹Рµ РїРµСЂРµРјРµРЅРЅС‹Рµ 
 set g_FSO = CreateObject("Scripting.FileSystemObject")
 set g_Shell = WScript.CreateObject("WScript.Shell")
 const c_strLocalSettingRegPath = "HKCU\Control Panel\International\"
@@ -66,16 +66,16 @@ const c_strLocalSettingRegPath = "HKCU\Control Panel\International\"
 dim c_WinUserSetting_DecimalSymbol
 dim c_WinUserSetting_ListSeparator
 
-' внешний файл логов процесса сборки
+' РІРЅРµС€РЅРёР№ С„Р°Р№Р» Р»РѕРіРѕРІ РїСЂРѕС†РµСЃСЃР° СЃР±РѕСЂРєРё
 dim g_LogName
 
-' итоговый массив обработанных строк, 
-' придется делать глобальным для избежания блокировок
+' РёС‚РѕРіРѕРІС‹Р№ РјР°СЃСЃРёРІ РѕР±СЂР°Р±РѕС‚Р°РЅРЅС‹С… СЃС‚СЂРѕРє, 
+' РїСЂРёРґРµС‚СЃСЏ РґРµР»Р°С‚СЊ РіР»РѕР±Р°Р»СЊРЅС‹Рј РґР»СЏ РёР·Р±РµР¶Р°РЅРёСЏ Р±Р»РѕРєРёСЂРѕРІРѕРє
 dim g_arrResultArray()
 g_nResultArrayIndex = 3
  '------------------------------------------------------------------------------
 
-' вызов главной функции
+' РІС‹Р·РѕРІ РіР»Р°РІРЅРѕР№ С„СѓРЅРєС†РёРё
 if (WScript.Arguments.Count) then
   startConversion(Wscript.Arguments(0))
 else
@@ -90,7 +90,7 @@ function startConversion(astrSourcePath)
   dim dtBuildStart
   dtBuildStart = Now()  
   
-  ' загружаем исходные данные
+  ' Р·Р°РіСЂСѓР¶Р°РµРј РёСЃС…РѕРґРЅС‹Рµ РґР°РЅРЅС‹Рµ
   if (astrSourcePath <> "") then
     strSourceFilePath = astrSourcePath
     c_strSourceFile = g_FSO.GetBaseName(astrSourcePath)
@@ -98,7 +98,7 @@ function startConversion(astrSourcePath)
     strSourceFilePath = getLocalPath() & c_strSourceSubFolder & c_strSourceFile & c_strSourceExtension
   end if
   
-	' создаем файл логов
+	' СЃРѕР·РґР°РµРј С„Р°Р№Р» Р»РѕРіРѕРІ
   g_LogName = createFile(getLocalPath(), c_strLogsSubFolder, c_strLogExtension)
   logOut "Starting csv2edt conversion, script version: " & c_strScriptVer
 	logOut "created log file: " & g_LogName
@@ -110,7 +110,7 @@ function startConversion(astrSourcePath)
 		exit function	
   end if
   
-	' проверка что в файле есть данные
+	' РїСЂРѕРІРµСЂРєР° С‡С‚Рѕ РІ С„Р°Р№Р»Рµ РµСЃС‚СЊ РґР°РЅРЅС‹Рµ
   dim instructionsFile
   set instructionsFile = g_FSO.OpenTextFile(strSourceFilePath, 1, false, 0)
 	if instructionsFile.AtEndOfStream then
@@ -124,17 +124,17 @@ function startConversion(astrSourcePath)
   logOut "string separator: " & c_WinUserSetting_ListSeparator
     
   redim preserve g_arrResultArray(g_nResultArrayIndex)
-  ' точно знаем эти строки 
+  ' С‚РѕС‡РЅРѕ Р·РЅР°РµРј СЌС‚Рё СЃС‚СЂРѕРєРё 
   g_arrResultArray(0) = c_strGlogalHeader01
   g_arrResultArray(1) = c_strGlogalHeader02
   g_arrResultArray(2) = c_strGlogalHeader03
-  ' 3 заполняем в конце, после того как станет известно общее количество элементов
+  ' 3 Р·Р°РїРѕР»РЅСЏРµРј РІ РєРѕРЅС†Рµ, РїРѕСЃР»Рµ С‚РѕРіРѕ РєР°Рє СЃС‚Р°РЅРµС‚ РёР·РІРµСЃС‚РЅРѕ РѕР±С‰РµРµ РєРѕР»РёС‡РµСЃС‚РІРѕ СЌР»РµРјРµРЅС‚РѕРІ
   
-	' строки текущего блока данных
+	' СЃС‚СЂРѕРєРё С‚РµРєСѓС‰РµРіРѕ Р±Р»РѕРєР° РґР°РЅРЅС‹С…
 	dim arrCurrentBlock
   arrCurrentBlock = Array()
 	
-	' элементы строки строки
+	' СЌР»РµРјРµРЅС‚С‹ СЃС‚СЂРѕРєРё СЃС‚СЂРѕРєРё
 	dim arrCurrentLine
 	arrCurrentLine = array()
 	
@@ -156,8 +156,8 @@ function startConversion(astrSourcePath)
   while not instructionsFile.AtEndOfStream
     nSourceLineNumber = nSourceLineNumber + 1
 		
-    ' идея с блочной структурой при детальном рассмотрении не кажется столь удобной
-    ' переделываю на один массив
+    ' РёРґРµСЏ СЃ Р±Р»РѕС‡РЅРѕР№ СЃС‚СЂСѓРєС‚СѓСЂРѕР№ РїСЂРё РґРµС‚Р°Р»СЊРЅРѕРј СЂР°СЃСЃРјРѕС‚СЂРµРЅРёРё РЅРµ РєР°Р¶РµС‚СЃСЏ СЃС‚РѕР»СЊ СѓРґРѕР±РЅРѕР№
+    ' РїРµСЂРµРґРµР»С‹РІР°СЋ РЅР° РѕРґРёРЅ РјР°СЃСЃРёРІ
     
     startConversion = parseLine(_
 			nSourceLineNumber,_
@@ -178,7 +178,7 @@ function startConversion(astrSourcePath)
       logOut ""
       logOut "block header: " & vbNewLine & g_arrResultArray(g_nResultArrayIndex)
 
-      ' чередуем типы блоков так, ибо в csv не указаны типы
+      ' С‡РµСЂРµРґСѓРµРј С‚РёРїС‹ Р±Р»РѕРєРѕРІ С‚Р°Рє, РёР±Рѕ РІ csv РЅРµ СѓРєР°Р·Р°РЅС‹ С‚РёРїС‹
       if (nBlockType = c_nBlockTypeModulus) then
         nBlockType = c_nBlockTypeDamping
       else
@@ -270,7 +270,7 @@ end function
 '------------------------------------------------------------------------------
 
 function exportResultsToEdt(astrEdtFilePath)
-  ' создаем файл логов
+  ' СЃРѕР·РґР°РµРј С„Р°Р№Р» Р»РѕРіРѕРІ
   exportFile = createFile(getLocalPath(), c_strResultsSubFolder, c_strResultsExtension)
   logOut "exporting results to: " & exportFile
 	
@@ -306,7 +306,7 @@ function fillArrayWithData(aarrCurrentLine, anCurrentLineElementsNumber)
 
   dim maxIter
       
-  ' 2 первых пропускаем  
+  ' 2 РїРµСЂРІС‹С… РїСЂРѕРїСѓСЃРєР°РµРј  
   for i = 2 to anCurrentLineElementsNumber + 1
 		'if (i > 1) then
       'logOut "i: " & i & "; realIterator: " & realIterator
@@ -428,15 +428,15 @@ function convertValues(arrCurrentLine, anSourceLineElementsNumber, anCurrentLine
         nNumberOfCharactersToCopy = 0
 				nNumberOfCharactersToCopy = calcNumOfChars(arrCurrentLine(i))
 				
-				' 0 слева от точки не пишется
+				' 0 СЃР»РµРІР° РѕС‚ С‚РѕС‡РєРё РЅРµ РїРёС€РµС‚СЃСЏ
 				if (left(arrCurrentLine(i), 1) = "0") then
-					' обработаем полный 0
+					' РѕР±СЂР°Р±РѕС‚Р°РµРј РїРѕР»РЅС‹Р№ 0
           if (arrCurrentLine(i) <> "0") then
             nNumberOfCharactersToCopy = nNumberOfCharactersToCopy - 1
           end if
 				end if
 				
-				' добавляем лидирующие пробелы      
+				' РґРѕР±Р°РІР»СЏРµРј Р»РёРґРёСЂСѓСЋС‰РёРµ РїСЂРѕР±РµР»С‹      
 				arrCurrentLine(i) = addLeadingSpaces(arrCurrentLine(i), _
           c_nElementLength, _
           nNumberOfCharactersToCopy)
@@ -495,8 +495,8 @@ function convertAndRound(aValue)
 end function
 '------------------------------------------------------------------------------
 
-' округление по c_nPlaceToRound разряду в зависимости от
-' (c_nPlaceToRound + 1) разряда
+' РѕРєСЂСѓРіР»РµРЅРёРµ РїРѕ c_nPlaceToRound СЂР°Р·СЂСЏРґСѓ РІ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚
+' (c_nPlaceToRound + 1) СЂР°Р·СЂСЏРґР°
 function roughRounding(aValue)
  
 	pointPos = InStr(aValue,".")
@@ -511,14 +511,14 @@ function roughRounding(aValue)
 end function
 '------------------------------------------------------------------------------
 
-' функция определения пути к скрипту
+' С„СѓРЅРєС†РёСЏ РѕРїСЂРµРґРµР»РµРЅРёСЏ РїСѓС‚Рё Рє СЃРєСЂРёРїС‚Сѓ
 function getLocalPath()
   getLocalPath = Mid(WScript.ScriptFullName, 1, _
     Len(WScript.ScriptFullName) - Len(WScript.ScriptName))
 end function
 '------------------------------------------------------------------------------
 
-' Дать имя даты текущее
+' Р”Р°С‚СЊ РёРјСЏ РґР°С‚С‹ С‚РµРєСѓС‰РµРµ
 function getDateFormat()
   dtNow = Now()
 
@@ -556,9 +556,9 @@ function getDateFormat()
 end function
 '------------------------------------------------------------------------------
 
-' Создание уникального имени файла по дате
-' astrPath - путь к файлу
-' astrExtension - расширение создаваемого файла
+' РЎРѕР·РґР°РЅРёРµ СѓРЅРёРєР°Р»СЊРЅРѕРіРѕ РёРјРµРЅРё С„Р°Р№Р»Р° РїРѕ РґР°С‚Рµ
+' astrPath - РїСѓС‚СЊ Рє С„Р°Р№Р»Сѓ
+' astrExtension - СЂР°СЃС€РёСЂРµРЅРёРµ СЃРѕР·РґР°РІР°РµРјРѕРіРѕ С„Р°Р№Р»Р°
 function generateName(astrPath, astrExtension)
   dim strTemp, strResult
   strTemp = astrPath & "\" & "csv2edt__" &  c_strSourceFile & "_" & getDateFormat()
@@ -579,7 +579,7 @@ function generateName(astrPath, astrExtension)
 end function
 '------------------------------------------------------------------------------
 
-' вывод в логи и в всплавающее окно
+' РІС‹РІРѕРґ РІ Р»РѕРіРё Рё РІ РІСЃРїР»Р°РІР°СЋС‰РµРµ РѕРєРЅРѕ
 sub logOutMsgBox(astrMsg)
   on error resume next  
   msgbox astrMsg
@@ -587,7 +587,7 @@ sub logOutMsgBox(astrMsg)
 end sub
 '------------------------------------------------------------------------------
 
-' вывод в логи
+' РІС‹РІРѕРґ РІ Р»РѕРіРё
 sub logOut(astrMsg)
   on error resume next  
   WScript.StdOut.WriteLine astrMsg
@@ -595,8 +595,8 @@ sub logOut(astrMsg)
 end sub
 '------------------------------------------------------------------------------
 
-' создание внешнего файла для логирования процесса автосборки
-' astrPath - путь к файлу
+' СЃРѕР·РґР°РЅРёРµ РІРЅРµС€РЅРµРіРѕ С„Р°Р№Р»Р° РґР»СЏ Р»РѕРіРёСЂРѕРІР°РЅРёСЏ РїСЂРѕС†РµСЃСЃР° Р°РІС‚РѕСЃР±РѕСЂРєРё
+' astrPath - РїСѓС‚СЊ Рє С„Р°Р№Р»Сѓ
 function createFile(astrPath, astrSubFolder, astrExtension)
   strFinalPath = astrPath & astrSubFolder
   if not g_FSO.FolderExists(strFinalPath) then
@@ -606,7 +606,7 @@ function createFile(astrPath, astrSubFolder, astrExtension)
 end function
 '------------------------------------------------------------------------------
 
-' вывод текста во внешний файл
+' РІС‹РІРѕРґ С‚РµРєСЃС‚Р° РІРѕ РІРЅРµС€РЅРёР№ С„Р°Р№Р»
 sub logOutToFile(astr)
   dim ts
   set ts = g_FSO.OpenTextFile(g_LogName, 8, true, 0)
