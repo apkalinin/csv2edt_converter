@@ -1,12 +1,12 @@
 ' конвертация первого блока данных из csv в edt
-const c_strScriptVer = "1.0"
+const c_strScriptVer = "1.1"
 '------------------------------------------------------------------------------
 
 ' названия соответствующих подпапок
 const c_strLogsSubFolder = "logs"
 const c_strSourceSubFolder = "source\"
 'const c_strSourceSubFolder = ""
-const c_strResultsSubFolder = "results\"
+const c_strResultsSubFolder = "results"
 
 ' путь к исходным данным для отладки
 c_strSourceFile = "__test01"
@@ -17,9 +17,11 @@ const c_strResultsExtension = ".edt"
 const c_strSourceExtension = ".csv"
 
 ' разделительный символ csv файла
-const c_CSVSplitSymbol = ";"
+' см c_WinUserSetting_ListSeparator
+'const c_CSVSplitSymbol = ";"
+
 ' формат дробных чисел
-const c_CommaSymbol = "."
+const c_EdtDecimalSymbol = "."
 
 ' кодовое слово для обозначения нового блока
 const c_strNewBlock = "strain(%)"
@@ -58,6 +60,12 @@ const c_nBlockTypeDamping = 1
 
 ' глобальные переменные 
 set g_FSO = CreateObject("Scripting.FileSystemObject")
+set g_Shell = WScript.CreateObject("WScript.Shell")
+const c_strLocalSettingRegPath = "HKCU\Control Panel\International\"
+
+dim c_WinUserSetting_DecimalSymbol
+dim c_WinUserSetting_ListSeparator
+
 ' внешний файл логов процесса сборки
 dim g_LogName
 
@@ -78,6 +86,9 @@ end if
 
 function startConversion(astrSourcePath)  
   startConversion = -1
+  
+  dim dtBuildStart
+  dtBuildStart = Now()  
   
   ' загружаем исходные данные
   if (astrSourcePath <> "") then
@@ -107,6 +118,11 @@ function startConversion(astrSourcePath)
     exit function
   end if
   
+  logOut "reading windows user local regional setting"
+  readWinUserRegionalSetting()
+  logOut "decimal symbol: " & c_WinUserSetting_DecimalSymbol 
+  logOut "string separator: " & c_WinUserSetting_ListSeparator
+    
   redim preserve g_arrResultArray(g_nResultArrayIndex)
   ' точно знаем эти строки 
   g_arrResultArray(0) = c_strGlogalHeader01
@@ -137,7 +153,6 @@ function startConversion(astrSourcePath)
 	
   logOut "initializing complete"
   logOut ""
-  logOut " ------------------------------------- "
   while not instructionsFile.AtEndOfStream
     nSourceLineNumber = nSourceLineNumber + 1
 		
@@ -160,7 +175,7 @@ function startConversion(astrSourcePath)
         nMaterialNumber, _
         nCurrentLineElementsNumber)
       
-      logOut " ------------------------------------- "
+      logOut ""
       logOut "block header: " & vbNewLine & g_arrResultArray(g_nResultArrayIndex)
 
       ' чередуем типы блоков так, ибо в csv не указаны типы
@@ -178,8 +193,8 @@ function startConversion(astrSourcePath)
       nCurrentLineElementsNumber)    
   wend
 
-  logOut " ------------------------------------- "
-  logOut "information was converted to edt style "
+  logOut ""
+  logOut "information was converted to edt format"
   g_arrResultArray(3) = addLeadingSpaces(_
     nMaterialNumber, _
     c_nHeaderLenth_NumberOfElements, _
@@ -194,12 +209,24 @@ function startConversion(astrSourcePath)
     nMaterialNumber, _
     strUnlock)
   
-	startConversion = exportResultsToEdt()
+  dim strEdtFilePath
+	startConversion = exportResultsToEdt(strEdtFilePath)
+  logOut "finishing csv2edt "
   
-  logOut "finally finishing csv2edt"
+  logOutMsgBox _
+    "csv2edt finished for file: " & vbNewLine & strSourceFilePath & vbNewLine & vbNewLine & _ 
+    "result file: " & vbNewLine & strEdtFilePath & vbNewLine & vbNewLine & _ 
+    "log file: " & vbNewLine & g_LogName & vbNewLine & vbNewLine & _
+    "runtime: " & DateDiff("s", dtBuildStart, Now()) & " seconds"
   
   startConversion = 0
 end function
+'------------------------------------------------------------------------------
+
+sub readWinUserRegionalSetting()
+  c_WinUserSetting_DecimalSymbol = g_Shell.RegRead(c_strLocalSettingRegPath & "sDecimal")
+  c_WinUserSetting_ListSeparator = g_Shell.RegRead(c_strLocalSettingRegPath & "sList")
+end sub
 '------------------------------------------------------------------------------
 
 function createLastString(anMaterialNumber, astrMaterialNumber)
@@ -234,17 +261,15 @@ function getArgsPath()
   const c_strPathName = "-path="
 
   for nArgIndex = 0 to WScript.Arguments.Count - 1
-
     if InStr(WScript.Arguments(nArgIndex), c_strPathName) = 1 then
-
       getArgsPath = Mid(WScript.Arguments(nArgIndex), Len(c_strPathName) + 1)
     end if
   next
 
-  'getBranchName = strBuildBranchName
 end function
 '------------------------------------------------------------------------------
-function exportResultsToEdt()
+
+function exportResultsToEdt(astrEdtFilePath)
   ' создаем файл логов
   exportFile = createFile(getLocalPath(), c_strResultsSubFolder, c_strResultsExtension)
   logOut "exporting results to: " & exportFile
@@ -258,7 +283,8 @@ function exportResultsToEdt()
   
   edtFile.close()
   
-  logOut "edt file created" 
+  logOut "edt file created"
+  astrEdtFilePath = exportFile
   
 end function
 '------------------------------------------------------------------------------
@@ -285,13 +311,13 @@ function fillArrayWithData(aarrCurrentLine, anCurrentLineElementsNumber)
 		'if (i > 1) then
       'logOut "i: " & i & "; realIterator: " & realIterator
     if (realIterator = c_nElementsInOneRow) then
-      'logOut "ubound(aarrCurrentLine): " & ubound(aarrCurrentLine) & "; anCurrentLineElementsNumber: " & anCurrentLineElementsNumber
       extend = extendResultArray()
       realIterator = 0
     end if
     
     'logOut "current line: " & aarrCurrentLine(i)  
-    g_arrResultArray(g_nResultArrayIndex) = g_arrResultArray(g_nResultArrayIndex) & aarrCurrentLine(i)
+    g_arrResultArray(g_nResultArrayIndex) = _
+      g_arrResultArray(g_nResultArrayIndex) & aarrCurrentLine(i)
     'logOut "ubound(aarrCurrentLine): " & ubound(aarrCurrentLine) & "; i: " & i
     logOut "current line:" & vbNewLine & g_arrResultArray(g_nResultArrayIndex)
     
@@ -350,14 +376,16 @@ function parseLine(anSourceLineNumber,_
 	
   parseLine = -1
 	
-	arrCurrentLine = Split(aLine, c_CSVSplitSymbol, -1, 1)
+	arrCurrentLine = Split(aLine, c_WinUserSetting_ListSeparator, -1, 1)
 	nSourceLineElementsNumber = ubound(arrCurrentLine)
 	
   logOut ""
-	logOut "parsing line: " & anSourceLineNumber & "; number of elements is source line: " & nSourceLineElementsNumber + 1
+	logOut "parsing line: " & anSourceLineNumber & _
+    "; number of elements is source line: " & nSourceLineElementsNumber + 1
 	
 	if ((nSourceLineElementsNumber < 1) or (nSourceLineElementsNumber > 21)) then  
-    logOut "Bad line: " & sourceLineNumber & " - inappropriate number of elements: " & nSourceLineElementsNumber
+    logOutMsgBox "Bad line: " & sourceLineNumber & _
+      " - inappropriate number of elements: " & nSourceLineElementsNumber
     exit function
   end if
 	
@@ -368,7 +396,9 @@ function parseLine(anSourceLineNumber,_
 		logOut "current line begins new data block, material number: " & anMaterialNumber
 	end if
 	
-	parseLine = convertValues(arrCurrentLine, nSourceLineElementsNumber, anCurrentLineElementsNumber)
+	parseLine = convertValues(arrCurrentLine,_ 
+    nSourceLineElementsNumber, _
+    anCurrentLineElementsNumber)
 end function
 '------------------------------------------------------------------------------
 
@@ -389,9 +419,10 @@ function convertValues(arrCurrentLine, anSourceLineElementsNumber, anCurrentLine
 			if (nElementLength = 0) then
 				logOut "element skipped, data length: " & nElementLength
 			else 
+        
         arrCurrentLine(i) = convertAndRound(arrCurrentLine(i))
         
-        arrCurrentLine(i) = replace(arrCurrentLine(i), ",", ".", 1, -1, 1)
+        arrCurrentLine(i) = replace(arrCurrentLine(i), ",", ".")
 
 				dim nNumberOfCharactersToCopy
         nNumberOfCharactersToCopy = 0
@@ -406,7 +437,9 @@ function convertValues(arrCurrentLine, anSourceLineElementsNumber, anCurrentLine
 				end if
 				
 				' добавляем лидирующие пробелы      
-				arrCurrentLine(i) = addLeadingSpaces(arrCurrentLine(i), c_nElementLength, nNumberOfCharactersToCopy)
+				arrCurrentLine(i) = addLeadingSpaces(arrCurrentLine(i), _
+          c_nElementLength, _
+          nNumberOfCharactersToCopy)
 				logOut "edt form: '" & arrCurrentLine(i) & "'"
 				
 				anCurrentLineElementsNumber = anCurrentLineElementsNumber + 1
@@ -420,7 +453,7 @@ function convertValues(arrCurrentLine, anSourceLineElementsNumber, anCurrentLine
 		convertValues = 0
 	'end if
 	else
-		logOut "source string had elements to convert. why??? script will continue for now"
+		logOut "source string had no elements to convert. script will continue for now"
 	end if
 	
 end function
@@ -452,8 +485,13 @@ end function
 '------------------------------------------------------------------------------
 
 function convertAndRound(aValue)
-
-  convertAndRound = round(CDbl(Replace(aValue,".",",")), 5)
+  
+  if not (InStr(aValue, c_WinUserSetting_DecimalSymbol)) then
+    aValue = Replace(aValue, ".", ",")
+  end if 
+  
+  convertAndRound = round(CDbl(aValue), 5)
+  'convertAndRound = round(CDbl(Replace(aValue,".",",")), 5)
 end function
 '------------------------------------------------------------------------------
 
@@ -541,10 +579,17 @@ function generateName(astrPath, astrExtension)
 end function
 '------------------------------------------------------------------------------
 
-' Echo
+' вывод в логи и в всплавающее окно
+sub logOutMsgBox(astrMsg)
+  on error resume next  
+  msgbox astrMsg
+  logOut astrMsg
+end sub
+'------------------------------------------------------------------------------
+
+' вывод в логи
 sub logOut(astrMsg)
   on error resume next  
-  'msgbox astrMsg
   WScript.StdOut.WriteLine astrMsg
   logOutToFile astrMsg
 end sub
