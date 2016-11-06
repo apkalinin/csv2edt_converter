@@ -1,0 +1,571 @@
+' конвертация первого блока данных из csv в edt
+const c_strScriptVer = "1.0"
+'------------------------------------------------------------------------------
+
+' названия соответствующих подпапок
+const c_strLogsSubFolder = "logs"
+const c_strSourceSubFolder = "source\"
+'const c_strSourceSubFolder = ""
+const c_strResultsSubFolder = "results\"
+
+' путь к исходным данным для отладки
+c_strSourceFile = "__test01"
+
+' расширения файлов
+const c_strLogExtension = ".log"
+const c_strResultsExtension = ".edt"
+const c_strSourceExtension = ".csv"
+
+' разделительный символ csv файла
+const c_CSVSplitSymbol = ";"
+' формат дробных чисел
+const c_CommaSymbol = "."
+
+' кодовое слово для обозначения нового блока
+const c_strNewBlock = "strain(%)"
+
+' размер одной числовой записи
+const c_nOutputWidth = 80
+const c_nElementLength = 10
+const c_nNumberLength = 5
+c_nElementsInOneRow = c_nOutputWidth / c_nElementLength
+c_nNumbersInOneRow = c_nOutputWidth / c_nNumberLength
+
+' размер информационного поля о количестве элементов
+const c_nHeaderLenth_NumberOfElements = 5
+
+' параметры формирования заголоков
+const c_nBlockHeader01_FullLength = 16
+const c_nBlockHeader01_LeadingSpaces = 4
+const c_nBlockHeader02_FullLength = 59	' вот почему-то столько отводит места программа
+
+' текст заголовков
+const c_strBlockHeader01_01 = "Mat"
+const c_strBlockHeader01_02 = "_Busher"
+
+const c_strBlockHeader02_01 = "Modulus values for Material No. "
+const c_strBlockHeader02_02 = "Damping values for Material No. "
+
+const c_strGlogalHeader01 = "SHAKE2000 EDT File - SI"
+const c_strGlogalHeader02 = "Option 1 - Dynamic material properties"
+const c_strGlogalHeader03 = "    1"
+
+' до какого разряда производить округление
+const c_nPlaceToRound = 5
+
+const c_nBlockTypeModulus = 0
+const c_nBlockTypeDamping = 1
+
+' глобальные переменные 
+set g_FSO = CreateObject("Scripting.FileSystemObject")
+' внешний файл логов процесса сборки
+dim g_LogName
+
+' итоговый массив обработанных строк, 
+' придется делать глобальным для избежания блокировок
+dim g_arrResultArray()
+g_nResultArrayIndex = 3
+ '------------------------------------------------------------------------------
+
+' вызов главной функции
+if (WScript.Arguments.Count) then
+  startConversion(Wscript.Arguments(0))
+else
+  startConversion("")
+end if
+
+'------------------------------------------------------------------------------
+
+function startConversion(astrSourcePath)  
+  startConversion = -1
+  
+  ' загружаем исходные данные
+  if (astrSourcePath <> "") then
+    strSourceFilePath = astrSourcePath
+    c_strSourceFile = g_FSO.GetBaseName(astrSourcePath)
+  else 
+    strSourceFilePath = getLocalPath() & c_strSourceSubFolder & c_strSourceFile & c_strSourceExtension
+  end if
+  
+	' создаем файл логов
+  g_LogName = createFile(getLocalPath(), c_strLogsSubFolder, c_strLogExtension)
+  logOut "Starting csv2edt conversion, script version: " & c_strScriptVer
+	logOut "created log file: " & g_LogName
+ 
+  logOut "trying to load source file: " & strSourceFilePath
+  if not g_FSO.fileExists(strSourceFilePath) then
+		logOut "couldn't find source file, exiting script"
+		startConversion = -1
+		exit function	
+  end if
+  
+	' проверка что в файле есть данные
+  dim instructionsFile
+  set instructionsFile = g_FSO.OpenTextFile(strSourceFilePath, 1, false, 0)
+	if instructionsFile.AtEndOfStream then
+    logOut "source file is empty"
+    exit function
+  end if
+  
+  redim preserve g_arrResultArray(g_nResultArrayIndex)
+  ' точно знаем эти строки 
+  g_arrResultArray(0) = c_strGlogalHeader01
+  g_arrResultArray(1) = c_strGlogalHeader02
+  g_arrResultArray(2) = c_strGlogalHeader03
+  ' 3 заполняем в конце, после того как станет известно общее количество элементов
+  
+	' строки текущего блока данных
+	dim arrCurrentBlock
+  arrCurrentBlock = Array()
+	
+	' элементы строки строки
+	dim arrCurrentLine
+	arrCurrentLine = array()
+	
+	dim nSourceLineNumber
+	dim nBlockLineNumber
+	dim nResultLinesNumber
+	
+	dim fNewBlockFlag
+	fNewBlockFlag = false
+	
+	dim nCurrentLineElementsNumber
+	dim nMaterialNumber
+	
+	dim nBlockType ' 0 - modulus, 1 - damping
+	nBlockType = c_nBlockTypeModulus
+	
+  logOut "initializing complete"
+  logOut ""
+  logOut " ------------------------------------- "
+  while not instructionsFile.AtEndOfStream
+    nSourceLineNumber = nSourceLineNumber + 1
+		
+    ' идея с блочной структурой при детальном рассмотрении не кажется столь удобной
+    ' переделываю на один массив
+    
+    startConversion = parseLine(_
+			nSourceLineNumber,_
+			instructionsFile.ReadLine(),_
+			arrCurrentLine,_
+			nCurrentLineElementsNumber,_
+			nMaterialNumber,_
+			fNewBlockFlag) 
+    
+    if (fNewBlockFlag) then   
+      
+      extend = extendResultArray()
+      g_arrResultArray(g_nResultArrayIndex) = createBlockHeader(_
+        nBlockType, _
+        nMaterialNumber, _
+        nCurrentLineElementsNumber)
+      
+      logOut " ------------------------------------- "
+      logOut "block header: " & vbNewLine & g_arrResultArray(g_nResultArrayIndex)
+
+      ' чередуем типы блоков так, ибо в csv не указаны типы
+      if (nBlockType = c_nBlockTypeModulus) then
+        nBlockType = c_nBlockTypeDamping
+      else
+        nBlockType = c_nBlockTypeModulus
+      end if
+      
+      fNewBlockFlag = 0
+    end if
+    
+    startConversion = fillArrayWithData(_
+      arrCurrentLine, _ 
+      nCurrentLineElementsNumber)    
+  wend
+
+  logOut " ------------------------------------- "
+  logOut "information was converted to edt style "
+  g_arrResultArray(3) = addLeadingSpaces(_
+    nMaterialNumber, _
+    c_nHeaderLenth_NumberOfElements, _
+    len(nMaterialNumber))
+   
+  logOut "total number of materials: " & g_arrResultArray(3)
+   
+  logOut "creating last string"
+  
+  strUnlock = g_arrResultArray(3)
+  startConversion = createLastString(_
+    nMaterialNumber, _
+    strUnlock)
+  
+	startConversion = exportResultsToEdt()
+  
+  logOut "finally finishing csv2edt"
+  
+  startConversion = 0
+end function
+'------------------------------------------------------------------------------
+
+function createLastString(anMaterialNumber, astrMaterialNumber)
+  dim realIterator
+	realIterator = 0
+  
+  extend = extendResultArray()
+  
+  g_arrResultArray(g_nResultArrayIndex) = astrMaterialNumber
+  
+  for i = 1 to anMaterialNumber
+    if (realIterator = c_nNumbersInOneRow - 1) then
+      extend = extendResultArray()
+      realIterator = 0
+    end if
+      
+    g_arrResultArray(g_nResultArrayIndex) = g_arrResultArray(g_nResultArrayIndex) & _
+      addLeadingSpaces(_
+        i, _
+        c_nHeaderLenth_NumberOfElements, _
+        len(i))
+
+    realIterator = realIterator + 1
+  next
+  
+  
+end function
+'------------------------------------------------------------------------------
+
+function getArgsPath()
+  
+  const c_strPathName = "-path="
+
+  for nArgIndex = 0 to WScript.Arguments.Count - 1
+
+    if InStr(WScript.Arguments(nArgIndex), c_strPathName) = 1 then
+
+      getArgsPath = Mid(WScript.Arguments(nArgIndex), Len(c_strPathName) + 1)
+    end if
+  next
+
+  'getBranchName = strBuildBranchName
+end function
+'------------------------------------------------------------------------------
+function exportResultsToEdt()
+  ' создаем файл логов
+  exportFile = createFile(getLocalPath(), c_strResultsSubFolder, c_strResultsExtension)
+  logOut "exporting results to: " & exportFile
+	
+  dim edtFile
+  set edtFile = g_FSO.OpenTextFile(exportFile, 8, true, 0)
+  
+  for i = 0 to ubound(g_arrResultArray)
+    edtFile.WriteLine(g_arrResultArray(i))
+  next
+  
+  edtFile.close()
+  
+  logOut "edt file created" 
+  
+end function
+'------------------------------------------------------------------------------
+
+function extendResultArray()
+  redim preserve g_arrResultArray(g_nResultArrayIndex + 1)
+  g_nResultArrayIndex = ubound(g_arrResultArray)
+end function
+'------------------------------------------------------------------------------
+
+function fillArrayWithData(aarrCurrentLine, anCurrentLineElementsNumber)
+	 
+	dim realIterator
+	realIterator = 0
+
+  extend = extendResultArray()
+	
+  logOut "initial array size: " & g_nResultArrayIndex  
+
+  dim maxIter
+      
+  ' 2 первых пропускаем  
+  for i = 2 to anCurrentLineElementsNumber + 1
+		'if (i > 1) then
+      'logOut "i: " & i & "; realIterator: " & realIterator
+    if (realIterator = c_nElementsInOneRow) then
+      'logOut "ubound(aarrCurrentLine): " & ubound(aarrCurrentLine) & "; anCurrentLineElementsNumber: " & anCurrentLineElementsNumber
+      extend = extendResultArray()
+      realIterator = 0
+    end if
+    
+    'logOut "current line: " & aarrCurrentLine(i)  
+    g_arrResultArray(g_nResultArrayIndex) = g_arrResultArray(g_nResultArrayIndex) & aarrCurrentLine(i)
+    'logOut "ubound(aarrCurrentLine): " & ubound(aarrCurrentLine) & "; i: " & i
+    logOut "current line:" & vbNewLine & g_arrResultArray(g_nResultArrayIndex)
+    
+    realIterator = realIterator + 1
+    
+    'end if
+	next
+  
+  logOut "new array size: " & g_nResultArrayIndex 
+  
+end function
+
+'------------------------------------------------------------------------------
+
+function createBlockHeader(anBlockType, anMaterialNumber, anCurrentLineElementsNumber)
+	
+	dim strNumberOfElems
+	strNumberOfElems = addLeadingSpaces(_
+		anCurrentLineElementsNumber,_
+		c_nHeaderLenth_NumberOfElements,_
+		len(anCurrentLineElementsNumber))
+	
+	dim strHeader01
+	strHeader01 = string(c_nBlockHeader01_LeadingSpaces, " ") &_
+		c_strBlockHeader01_01 &_ 
+		anMaterialNumber &_ 
+		c_strBlockHeader01_02
+	
+	if (len(strHeader01) > c_nBlockHeader01_FullLength) then
+		strHeader01 = left(strHeader01, c_nBlockHeader01_FullLength)
+	else
+		strHeader01 = strHeader01 &_
+			string(c_nBlockHeader01_FullLength - len(strHeader01), " ")
+	end if
+	
+	dim strHeader02
+	if (anBlockType = c_nBlockTypeModulus) then
+    strHeader02 = c_strBlockHeader02_01 & anMaterialNumber
+  elseif (anBlockType = c_nBlockTypeDamping) then
+    strHeader02 = c_strBlockHeader02_02 & anMaterialNumber
+  end if
+	if (len(strHeader02) > c_nBlockHeader02_FullLength) then
+		strHeader02 = left(strHeader02, c_nBlockHeader02_FullLength)
+	end if
+	
+	createBlockHeader = strNumberOfElems & strHeader01 & strHeader02
+end function
+'------------------------------------------------------------------------------
+
+function parseLine(anSourceLineNumber,_ 
+	aLine,_ 
+	arrCurrentLine,_
+	anCurrentLineElementsNumber,_
+	anMaterialNumber,_
+	afNewBlockFlag)
+	
+  parseLine = -1
+	
+	arrCurrentLine = Split(aLine, c_CSVSplitSymbol, -1, 1)
+	nSourceLineElementsNumber = ubound(arrCurrentLine)
+	
+  logOut ""
+	logOut "parsing line: " & anSourceLineNumber & "; number of elements is source line: " & nSourceLineElementsNumber + 1
+	
+	if ((nSourceLineElementsNumber < 1) or (nSourceLineElementsNumber > 21)) then  
+    logOut "Bad line: " & sourceLineNumber & " - inappropriate number of elements: " & nSourceLineElementsNumber
+    exit function
+  end if
+	
+	if (arrCurrentLine(1) = c_strNewBlock) then
+		afNewBlockFlag = true
+		anMaterialNumber = arrCurrentLine(0)
+		
+		logOut "current line begins new data block, material number: " & anMaterialNumber
+	end if
+	
+	parseLine = convertValues(arrCurrentLine, nSourceLineElementsNumber, anCurrentLineElementsNumber)
+end function
+'------------------------------------------------------------------------------
+
+function convertValues(arrCurrentLine, anSourceLineElementsNumber, anCurrentLineElementsNumber)
+	convertValues = -1
+	anCurrentLineElementsNumber = 0
+	
+	for i = 0 to anSourceLineElementsNumber  
+		logOut "converting element # " & i + 1
+		logOut "csv form: '" & arrCurrentLine(i) & "'"
+		
+		if i < 2 then
+			logOut "element skipped"
+    else
+			dim nElementLength
+			nElementLength = len(arrCurrentLine(i))
+			
+			if (nElementLength = 0) then
+				logOut "element skipped, data length: " & nElementLength
+			else 
+        arrCurrentLine(i) = convertAndRound(arrCurrentLine(i))
+        
+        arrCurrentLine(i) = replace(arrCurrentLine(i), ",", ".", 1, -1, 1)
+
+				dim nNumberOfCharactersToCopy
+        nNumberOfCharactersToCopy = 0
+				nNumberOfCharactersToCopy = calcNumOfChars(arrCurrentLine(i))
+				
+				' 0 слева от точки не пишется
+				if (left(arrCurrentLine(i), 1) = "0") then
+					' обработаем полный 0
+          if (arrCurrentLine(i) <> "0") then
+            nNumberOfCharactersToCopy = nNumberOfCharactersToCopy - 1
+          end if
+				end if
+				
+				' добавляем лидирующие пробелы      
+				arrCurrentLine(i) = addLeadingSpaces(arrCurrentLine(i), c_nElementLength, nNumberOfCharactersToCopy)
+				logOut "edt form: '" & arrCurrentLine(i) & "'"
+				
+				anCurrentLineElementsNumber = anCurrentLineElementsNumber + 1
+			end if
+		end if
+	next	
+	
+	logOut "number of converted elements: " & anCurrentLineElementsNumber
+	
+	if (anCurrentLineElementsNumber > 0) then
+		convertValues = 0
+	'end if
+	else
+		logOut "source string had elements to convert. why??? script will continue for now"
+	end if
+	
+end function
+'------------------------------------------------------------------------------
+
+function calcNumOfChars(aSourceStr)
+  pointPos = InStr(aSourceStr,".")
+ 
+  if (pointPos > 0) then
+    if (len(aSourceStr) >= pointPos + c_nPlaceToRound) then
+      calcNumOfChars = pointPos + c_nPlaceToRound
+    else
+      calcNumOfChars = len(aSourceStr)
+    end if
+  else
+    calcNumOfChars = len(aSourceStr)
+  end if
+ 
+end function
+'------------------------------------------------------------------------------
+
+function addLeadingSpaces(astrInputString, anNeededLength, anNumOfCharactersToCopy)
+	
+	addLeadingSpaces = _
+		string(anNeededLength - anNumOfCharactersToCopy, " ") & _
+		right(astrInputString, anNumOfCharactersToCopy)
+		
+end function
+'------------------------------------------------------------------------------
+
+function convertAndRound(aValue)
+
+  convertAndRound = round(CDbl(Replace(aValue,".",",")), 5)
+end function
+'------------------------------------------------------------------------------
+
+' округление по c_nPlaceToRound разряду в зависимости от
+' (c_nPlaceToRound + 1) разряда
+function roughRounding(aValue)
+ 
+	pointPos = InStr(aValue,".")
+	sixthCharacter = mid(aValue, pointPos + c_nPlaceToRound + 1, 1)
+	fifthCharacter = mid(aValue, pointPos + c_nPlaceToRound, 1)
+	
+	if (sixthCharacter > "4") then
+		fifthCharacter = fifthCharacter + 1
+	end if
+
+	roughRounding = left(aValue, pointPos + c_nPlaceToRound - 1) & fifthCharacter
+end function
+'------------------------------------------------------------------------------
+
+' функция определения пути к скрипту
+function getLocalPath()
+  getLocalPath = Mid(WScript.ScriptFullName, 1, _
+    Len(WScript.ScriptFullName) - Len(WScript.ScriptName))
+end function
+'------------------------------------------------------------------------------
+
+' Дать имя даты текущее
+function getDateFormat()
+  dtNow = Now()
+
+  dim strResult
+  
+  strResult = Year(dtNow) '& "_"
+
+  if Month(dtNow) < 10 then
+    strResult = strResult & "0"
+  end if
+  strResult = strResult & Month(dtNow) '& "_"
+
+  if Day(dtNow) < 10 then
+    strResult = strResult & "0"
+  end if
+  strResult = strResult & Day(dtNow) & "_"
+  
+  if Hour(dtNow) < 10 then
+    strResult = strResult & "0"
+  end if
+  strResult = strResult & Hour(dtNow) & "_"
+  
+  if Minute(dtNow) < 10 then
+    strResult = strResult & "0"
+  end if 
+  strResult = strResult & Minute(dtNow) & "_"
+  
+  if Second(dtNow) < 10 then
+    strResult = strResult & "0"
+  end if
+  strResult = strResult & Second(dtNow)
+
+  getDateFormat = strResult
+
+end function
+'------------------------------------------------------------------------------
+
+' Создание уникального имени файла по дате
+' astrPath - путь к файлу
+' astrExtension - расширение создаваемого файла
+function generateName(astrPath, astrExtension)
+  dim strTemp, strResult
+  strTemp = astrPath & "\" & "csv2edt__" &  c_strSourceFile & "_" & getDateFormat()
+  strResult = strTemp
+  
+  dim fileNameIterName
+  filenameIterator = 0
+  while g_FSO.fileExists(strResult & fileNameIterName & astrExtension)
+    filenameIterator = fileIterator + 1
+    fileNameIterName = "_" & filenameIterator
+  wend
+  if (filenameIterator) then
+    strResult = strTemp & fileNameIterName
+  end if
+
+  generateName = strResult & astrExtension
+  
+end function
+'------------------------------------------------------------------------------
+
+' Echo
+sub logOut(astrMsg)
+  on error resume next  
+  'msgbox astrMsg
+  WScript.StdOut.WriteLine astrMsg
+  logOutToFile astrMsg
+end sub
+'------------------------------------------------------------------------------
+
+' создание внешнего файла для логирования процесса автосборки
+' astrPath - путь к файлу
+function createFile(astrPath, astrSubFolder, astrExtension)
+  strFinalPath = astrPath & astrSubFolder
+  if not g_FSO.FolderExists(strFinalPath) then
+    g_FSO.CreateFolder strFinalPath
+  end if
+  createFile = generateName(strFinalPath, c_strLogExtension)
+end function
+'------------------------------------------------------------------------------
+
+' вывод текста во внешний файл
+sub logOutToFile(astr)
+  dim ts
+  set ts = g_FSO.OpenTextFile(g_LogName, 8, true, 0)
+  ts.WriteLine(Now() & " >> " & astr)
+  ts.close()
+end sub
+'------------------------------------------------------------------------------
