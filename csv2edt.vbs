@@ -1,5 +1,10 @@
 ' конвертация первого блока данных из csv в edt
-const c_strScriptVer = "1.1"
+const c_strScriptVer = "1.2"
+
+' 1.2:
+' - имя очередного блока берется из второй ячейки строки, содержащей c_strNewBlock
+'   поменялся формат исходных файлов на номер;название;тип строки;значения...
+'   (см __test03.csv)
 '------------------------------------------------------------------------------
 
 ' названия соответствующих подпапок
@@ -9,7 +14,7 @@ const c_strSourceSubFolder = "source\"
 const c_strResultsSubFolder = "results"
 
 ' путь к исходным данным для отладки
-c_strSourceFile = "__test01"
+c_strSourceFile = "__test03"
 
 ' расширения файлов
 const c_strLogExtension = ".log"
@@ -147,6 +152,7 @@ function startConversion(astrSourcePath)
 	
 	dim nCurrentLineElementsNumber
 	dim nMaterialNumber
+  dim strMaterialName
 	
 	dim nBlockType ' 0 - modulus, 1 - damping
 	nBlockType = c_nBlockTypeModulus
@@ -165,6 +171,7 @@ function startConversion(astrSourcePath)
 			arrCurrentLine,_
 			nCurrentLineElementsNumber,_
 			nMaterialNumber,_
+      strMaterialName,_
 			fNewBlockFlag) 
     
     if (fNewBlockFlag) then   
@@ -173,6 +180,7 @@ function startConversion(astrSourcePath)
       g_arrResultArray(g_nResultArrayIndex) = createBlockHeader(_
         nBlockType, _
         nMaterialNumber, _
+        strMaterialName, _
         nCurrentLineElementsNumber)
       
       logOut ""
@@ -270,7 +278,6 @@ end function
 '------------------------------------------------------------------------------
 
 function exportResultsToEdt(astrEdtFilePath)
-  ' создаем файл логов
   exportFile = createFile(getLocalPath(), c_strResultsSubFolder, c_strResultsExtension)
   logOut "exporting results to: " & exportFile
 	
@@ -306,8 +313,9 @@ function fillArrayWithData(aarrCurrentLine, anCurrentLineElementsNumber)
 
   dim maxIter
       
-  ' 2 первых пропускаем  
-  for i = 2 to anCurrentLineElementsNumber + 1
+  ' 2 первых пропускаем
+  ' 26.11 3 пропускаем 3
+  for i = 3 to anCurrentLineElementsNumber + 1
 		'if (i > 1) then
       'logOut "i: " & i & "; realIterator: " & realIterator
     if (realIterator = c_nElementsInOneRow) then
@@ -332,7 +340,7 @@ end function
 
 '------------------------------------------------------------------------------
 
-function createBlockHeader(anBlockType, anMaterialNumber, anCurrentLineElementsNumber)
+function createBlockHeader(anBlockType, anMaterialNumber, astrMaterialName, anCurrentLineElementsNumber)
 	
 	dim strNumberOfElems
 	strNumberOfElems = addLeadingSpaces(_
@@ -344,7 +352,7 @@ function createBlockHeader(anBlockType, anMaterialNumber, anCurrentLineElementsN
 	strHeader01 = string(c_nBlockHeader01_LeadingSpaces, " ") &_
 		c_strBlockHeader01_01 &_ 
 		anMaterialNumber &_ 
-		c_strBlockHeader01_02
+		"_" & astrMaterialName
 	
 	if (len(strHeader01) > c_nBlockHeader01_FullLength) then
 		strHeader01 = left(strHeader01, c_nBlockHeader01_FullLength)
@@ -372,6 +380,7 @@ function parseLine(anSourceLineNumber,_
 	arrCurrentLine,_
 	anCurrentLineElementsNumber,_
 	anMaterialNumber,_
+  astrMaterialName,_
 	afNewBlockFlag)
 	
   parseLine = -1
@@ -383,15 +392,17 @@ function parseLine(anSourceLineNumber,_
 	logOut "parsing line: " & anSourceLineNumber & _
     "; number of elements is source line: " & nSourceLineElementsNumber + 1
 	
-	if ((nSourceLineElementsNumber < 1) or (nSourceLineElementsNumber > 21)) then  
+	if ((nSourceLineElementsNumber < 2) or (nSourceLineElementsNumber > 22)) then  
     logOutMsgBox "Bad line: " & sourceLineNumber & _
       " - inappropriate number of elements: " & nSourceLineElementsNumber
     exit function
   end if
 	
-	if (arrCurrentLine(1) = c_strNewBlock) then
+	if (arrCurrentLine(2) = c_strNewBlock) then
 		afNewBlockFlag = true
 		anMaterialNumber = arrCurrentLine(0)
+    astrMaterialName = arrCurrentLine(1)
+    
 		
 		logOut "current line begins new data block, material number: " & anMaterialNumber
 	end if
@@ -410,7 +421,8 @@ function convertValues(arrCurrentLine, anSourceLineElementsNumber, anCurrentLine
 		logOut "converting element # " & i + 1
 		logOut "csv form: '" & arrCurrentLine(i) & "'"
 		
-		if i < 2 then
+    ' 26.11 пропускаем первые 3 служебных элемента
+		if i < 3 then
 			logOut "element skipped"
     else
 			dim nElementLength
